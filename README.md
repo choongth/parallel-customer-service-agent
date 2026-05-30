@@ -1,4 +1,6 @@
-# Parallel Customer Support Agent
+# 🤖 Parallel Customer Support Agent
+
+<div align="center">
 
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat&logo=python&logoColor=white)
 ![AWS Lambda](https://img.shields.io/badge/AWS_Lambda-Serverless-FF9900?style=flat&logo=awslambda&logoColor=white)
@@ -13,11 +15,13 @@
 ![CloudWatch](https://img.shields.io/badge/CloudWatch-Observability-FF4F8B?style=flat&logo=amazonaws&logoColor=white)
 ![pytest](https://img.shields.io/badge/pytest-Testing-0A9EDC?style=flat&logo=pytest&logoColor=white)
 
-A serverless, parallel AI customer support system built on AWS. Demonstrates multi-agent parallelization via SQS + Lambda and a two-layer memory system via DynamoDB.
+</div>
+
+> A serverless, parallel AI customer support system built on AWS. Demonstrates **multi-agent parallelization** via SQS + Lambda and a **two-layer memory system** via DynamoDB — achieving a **9.3× speedup** over sequential processing.
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
 ```
 Customer (HTTP POST)
@@ -46,50 +50,50 @@ Worker    Worker    Worker    Worker   ← one Lambda per customer, all run simu
 
 ---
 
-## Key Concepts
+## 💡 Key Concepts
 
-### Agent Parallelization
+### ⚡ Agent Parallelization
 When N customers send messages simultaneously, SQS receives all N messages and AWS automatically invokes N Lambda workers in parallel — no threading code, no server management. The load test proved **9.3× speedup** over sequential processing (10 customers handled in 1 second instead of 9).
 
-### Two-Layer Memory System
+### 🧠 Two-Layer Memory System
 
 | Layer | Table | Scope | Lifetime | Key |
 |---|---|---|---|---|
-| Short-term | `Conversations` | Per customer | 1 day (DynamoDB TTL) | `customer_id` |
-| Long-term | `FAQCache` | All customers | Permanent | MD5 of normalized question |
+| 🔵 Short-term | `Conversations` | Per customer | 1 day (DynamoDB TTL) | `customer_id` |
+| 🟢 Long-term | `FAQCache` | All customers | Permanent | MD5 of normalized question |
 
-**Short-term memory** preserves conversation history across multiple messages. Claude receives the full history on every call, so it remembers what the customer said earlier in the session.
+**🔵 Short-term memory** preserves conversation history across multiple messages. Claude receives the full history on every call, so it remembers what the customer said earlier in the session.
 
-**Long-term memory** caches answers to general questions. The second customer to ask "What is your return policy?" never reaches Claude — the cached answer is returned in ~175ms instead of ~3-4 seconds.
+**🟢 Long-term memory** caches answers to general questions. The second customer to ask "What is your return policy?" never reaches Claude — the cached answer is returned in ~175ms instead of ~3–4 seconds.
 
-### Dead-Letter Queue (DLQ)
+### 🪣 Dead-Letter Queue (DLQ)
 If a worker fails 3 times on the same message (e.g. transient Bedrock error), SQS moves it to `support-queue-dlq` instead of retrying forever. Messages are retained for 14 days for inspection and replay.
 
 ---
 
-## Tech Stack
+## 🛠️ Tech Stack
 
 | Layer | Technology | Purpose |
 |---|---|---|
-| Language | Python 3.11 | Lambda runtime |
-| AI Model | Claude 3.5 Sonnet (APAC) | Customer support responses |
-| AI Provider | Amazon Bedrock | Hosted model API, no separate API key needed |
-| Queue | Amazon SQS | Parallelism backbone, decouples producer from workers |
-| Dead-Letter Queue | Amazon SQS DLQ | Catches messages that fail 3× for inspection/replay |
-| Compute | AWS Lambda | Serverless worker execution, auto-scales to N workers |
-| API | Amazon API Gateway | Public HTTP endpoint, routes POST /support to Lambda |
-| Database | Amazon DynamoDB | Two-layer agent memory (on-demand, TTL auto-cleanup) |
-| IaC | AWS SAM | Defines all resources in `template.yaml`, transforms to CloudFormation |
-| Stack engine | AWS CloudFormation | Underlying engine that creates/updates/deletes all AWS resources |
-| Permissions | AWS IAM | Lambda execution roles and inline policies (SQS, DynamoDB, Bedrock) |
-| Artifact storage | Amazon S3 | Stores Lambda deployment packages during `sam deploy` (auto-managed by SAM) |
-| Observability | Amazon CloudWatch | Lambda logs, Logs Insights for cross-stream parallel execution queries |
-| SDK | boto3 | AWS Python SDK — used for SQS, DynamoDB, and Bedrock Converse API |
-| Testing | pytest | Unit tests for memory layer with mocked boto3 |
+| 🐍 Language | Python 3.11 | Lambda runtime |
+| 🤖 AI Model | Claude 3.5 Sonnet (APAC) | Customer support responses |
+| ☁️ AI Provider | Amazon Bedrock | Hosted model API, no separate API key needed |
+| 📨 Queue | Amazon SQS | Parallelism backbone, decouples producer from workers |
+| 🪣 Dead-Letter Queue | Amazon SQS DLQ | Catches messages that fail 3× for inspection/replay |
+| ⚡ Compute | AWS Lambda | Serverless worker execution, auto-scales to N workers |
+| 🌐 API | Amazon API Gateway | Public HTTP endpoint, routes POST /support to Lambda |
+| 🗄️ Database | Amazon DynamoDB | Two-layer agent memory (on-demand, TTL auto-cleanup) |
+| 📦 IaC | AWS SAM | Defines all resources in `template.yaml`, transforms to CloudFormation |
+| 🔧 Stack Engine | AWS CloudFormation | Underlying engine that creates/updates/deletes all AWS resources |
+| 🔐 Permissions | AWS IAM | Lambda execution roles and inline policies (SQS, DynamoDB, Bedrock) |
+| 🗃️ Artifact Storage | Amazon S3 | Stores Lambda deployment packages during `sam deploy` (auto-managed by SAM) |
+| 📊 Observability | Amazon CloudWatch | Lambda logs, Logs Insights for cross-stream parallel execution queries |
+| 🔌 SDK | boto3 | AWS Python SDK — used for SQS, DynamoDB, and Bedrock Converse API |
+| 🧪 Testing | pytest | Unit tests for memory layer with mocked boto3 |
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 parallel-customer-service-agent/
@@ -112,18 +116,19 @@ parallel-customer-service-agent/
 
 ---
 
-## Prerequisites
+## ✅ Prerequisites
 
-- Python 3.10+
-- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) configured (`aws configure`)
-- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
-- Amazon Bedrock model access enabled for **APAC Claude 3.5 Sonnet** in your region
+- 🐍 Python 3.10+
+- ☁️ [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) configured (`aws configure`)
+- 📦 [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
+- 🤖 Amazon Bedrock model access enabled for **APAC Claude 3.5 Sonnet** in your region
 
 ---
 
-## Setup & Deployment
+## 🚀 Setup & Deployment
 
-### 1. Create virtual environment
+### 1. 🐍 Create virtual environment
+
 **Windows**
 ```powershell
 python -m venv .venv
@@ -136,7 +141,7 @@ python -m venv .venv
 source .venv/bin/activate && pip install -r requirements-dev.txt
 ```
 
-### 2. Deploy to AWS
+### 2. ☁️ Deploy to AWS
 ```bash
 sam build && sam deploy --guided
 ```
@@ -154,22 +159,22 @@ Answer the prompts:
 
 Copy the `ApiEndpoint` and `SupportQueueUrl` from the deploy output into your `.env`.
 
-### 3. Enable Bedrock model access
+### 3. 🤖 Enable Bedrock model access
 AWS Console → Amazon Bedrock → Model access → Enable **APAC Claude 3.5 Sonnet**
 
-### 4. Seed the FAQ knowledge base
+### 4. 🌱 Seed the FAQ knowledge base
 ```bash
 FAQ_TABLE=FAQCache python src/shared/faq_seed.py
 ```
 
-### 5. Run unit tests
+### 5. 🧪 Run unit tests
 ```bash
 .venv\Scripts\python -m pytest tests/test_memory.py -v
 ```
 
 ---
 
-## Usage
+## 📬 Usage
 
 ### Send a support request
 ```bash
@@ -187,9 +192,9 @@ Response (immediate, async):
 }
 ```
 
-Claude's response is written to DynamoDB → `Conversations` table under the customer's `customer_id`.
+> 💡 Claude's response is written to DynamoDB → `Conversations` table under the customer's `customer_id`.
 
-### Run the load test
+### ⚡ Run the load test
 ```bash
 python tests/load_test.py --endpoint https://... --customers 10
 ```
@@ -210,32 +215,32 @@ Parallelism speedup:  9.3× faster than sequential
 
 ---
 
-## Memory System — How It Works
+## 🧠 Memory System — How It Works
 
 ```
 Incoming message: "What is your return policy?"
         │
-        ├─ get_faq(message)
+        ├─ 🟢 get_faq(message)
         │       └─ MD5("what is your return policy") → look up FAQCache
-        │               Hit?  → return cached answer in ~175ms (skip Claude)
+        │               Hit?  → return cached answer in ~175ms (skip Claude) ✅
         │               Miss? → continue ↓
         │
-        ├─ get_conversation(customer_id)
+        ├─ 🔵 get_conversation(customer_id)
         │       └─ load full message history from Conversations table
         │
-        ├─ bedrock.converse(history + new message)
+        ├─ 🤖 bedrock.converse(history + new message)
         │       └─ Claude sees full context → generates reply
         │
-        ├─ save_conversation(customer_id, updated_history)
+        ├─ 🔵 save_conversation(customer_id, updated_history)
         │       └─ append new exchange, reset TTL to +1 day
         │
-        └─ save_faq(message, reply)   ← only if no digits in message
+        └─ 🟢 save_faq(message, reply)   ← only if no digits in message
                 └─ cache for future customers
 ```
 
 ---
 
-## Observability
+## 📊 Observability
 
 View worker logs in CloudWatch:
 ```
@@ -243,7 +248,7 @@ AWS Console → Lambda → support-worker → Monitor → View CloudWatch Logs
 ```
 
 Query parallel execution across all workers (Logs Insights):
-```
+```sql
 fields @timestamp, @message
 | filter @message like "Processing ticket"
 | sort @timestamp asc
@@ -252,19 +257,19 @@ fields @timestamp, @message
 
 ---
 
-## Cost Estimate (development usage)
+## 💰 Cost Estimate (development usage)
 
-| Service | Dev cost |
+| Service | Dev Cost |
 |---|---|
-| Lambda | ~$0.00 (free tier: 1M requests/month) |
-| SQS | ~$0.00 (free tier: 1M requests/month) |
-| DynamoDB | ~$0.00 (on-demand, free tier: 25 GB) |
-| API Gateway | ~$0.00 (free tier: 1M calls/month) |
-| Amazon Bedrock | ~$0.003 per 1K input tokens (Claude 3.5 Sonnet) |
+| ⚡ Lambda | ~$0.00 (free tier: 1M requests/month) |
+| 📨 SQS | ~$0.00 (free tier: 1M requests/month) |
+| 🗄️ DynamoDB | ~$0.00 (on-demand, free tier: 25 GB) |
+| 🌐 API Gateway | ~$0.00 (free tier: 1M calls/month) |
+| 🤖 Amazon Bedrock | ~$0.003 per 1K input tokens (Claude 3.5 Sonnet) |
 
 ---
 
-## Cleanup
+## 🗑️ Cleanup
 
 To tear down all AWS resources:
 ```bash

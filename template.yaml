@@ -1,0 +1,136 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/aws/serverless-application-model/main/samtranslator/schema/schema.json
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Parallel Customer Support Agent - multi-agent system via SQS + Lambda
+
+# ---------------------------------------------------------------------------
+# Global defaults applied to every Lambda function in this template
+# ---------------------------------------------------------------------------
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30           # Claude API must respond within 30s
+    MemorySize: 256
+    Environment:
+      Variables:
+        CONVERSATIONS_TABLE: !Ref ConversationsTable
+        FAQ_TABLE: !Ref FAQCacheTable
+        SQS_QUEUE_URL: !Ref SupportQueue
+        BEDROCK_MODEL_ID: apac.anthropic.claude-3-5-sonnet-20240620-v1:0
+
+# ---------------------------------------------------------------------------
+# Resources - every AWS resource the system needs
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ── DynamoDB: short-term memory (one row per customer, TTL = 1 day) ──────
+  ConversationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Conversations
+      BillingMode: PAY_PER_REQUEST   # on-demand; no capacity planning needed
+      AttributeDefinitions:
+        - AttributeName: customer_id
+          AttributeType: S           # S = String
+      KeySchema:
+        - AttributeName: customer_id
+          KeyType: HASH              # partition key
+      TimeToLiveSpecification:
+        AttributeName: last_updated  # DynamoDB auto-deletes rows when this timestamp expires
+        Enabled: true
+
+  # ── DynamoDB: long-term memory (FAQ cache, persistent) ───────────────────
+  FAQCacheTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: FAQCache
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: question_hash
+          AttributeType: S           # MD5 of normalized question text
+      KeySchema:
+        - AttributeName: question_hash
+          KeyType: HASH
+
+  # ── SQS Queue: the parallelism backbone ──────────────────────────────────
+  SupportQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: support-queue
+      VisibilityTimeout: 35          # must be >= Lambda timeout (30s) + buffer
+      # Dead-letter queue: messages that fail 3 times go here for inspection
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SupportDLQ.Arn
+        maxReceiveCount: 3
+
+  # ── SQS Dead-Letter Queue: catches failed messages ────────────────────────
+  SupportDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: support-queue-dlq
+      MessageRetentionPeriod: 1209600  # keep failed messages for 14 days
+
+  # ── Lambda 1: Enqueue handler (API Gateway → SQS) ────────────────────────
+  EnqueueFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: support-enqueue
+      CodeUri: src/
+      Handler: enqueue.handler.lambda_handler
+      Policies:
+        - SQSSendMessagePolicy:          # SAM policy template: allows sqs:SendMessage
+            QueueName: !GetAtt SupportQueue.QueueName
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /support
+            Method: post
+
+  # ── Lambda 2: Worker (SQS → Claude → DynamoDB) ───────────────────────────
+  WorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: support-worker
+      CodeUri: src/
+      Handler: worker.handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:            # SAM policy template: allows full CRUD
+            TableName: !Ref ConversationsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FAQCacheTable
+        - SQSPollerPolicy:               # SAM policy template: allows sqs:ReceiveMessage etc.
+            QueueName: !GetAtt SupportQueue.QueueName
+        - Statement:                     # Bedrock: dev-wide access; lock down to specific model ARN in production
+          - Effect: Allow
+            Action:
+              - bedrock:InvokeModel
+              - bedrock:InvokeModelWithResponseStream
+              - bedrock:GetFoundationModel
+            Resource: "*"
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt SupportQueue.Arn
+            BatchSize: 1               # one message per worker = one customer per Lambda
+
+# ---------------------------------------------------------------------------
+# Outputs - values printed after deploy (useful for testing)
+# ---------------------------------------------------------------------------
+Outputs:
+  ApiEndpoint:
+    Description: POST to this URL to submit a customer support request
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/support"
+
+  SupportQueueUrl:
+    Description: SQS queue URL (useful for local testing)
+    Value: !Ref SupportQueue
+
+  ConversationsTableName:
+    Description: DynamoDB table for short-term conversation memory
+    Value: !Ref ConversationsTable
+
+  FAQCacheTableName:
+    Description: DynamoDB table for long-term FAQ memory
+    Value: !Ref FAQCacheTable
